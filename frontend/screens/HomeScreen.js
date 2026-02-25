@@ -1,4 +1,4 @@
-import React from 'react';
+//import React from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,12 @@ import {
 import { Feather } from '@expo/vector-icons';
 import PostCard from '../components/PostCard';
 import { StatusBar } from 'expo-status-bar';
+import React, { useState } from 'react';
 
-const posts = [
+
+
+export default function HomeScreen() {
+  const [posts, setPosts] = useState([
   {
     id: 1,
     name: 'Ramesh',
@@ -33,11 +37,7 @@ const posts = [
     likes: 12,
     comments: 4,
   },
-];
-
-
-export default function HomeScreen() {
-
+]);
   const renderPost = ({ item }) => (
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
@@ -54,7 +54,16 @@ export default function HomeScreen() {
       <Text style={styles.postContent}>{item.content}</Text>
     </View>
   );
+const handleRepost = (post) => {
+  const newPost = {
+    ...post,
+    id: Date.now(),
+    name: "You",
+    content: `Reposted: ${post.content}`
+  };
 
+  setPosts([newPost, ...posts]);
+};
   return (
     <View style={styles.container}>
         <StatusBar style="dark" />
@@ -94,7 +103,9 @@ export default function HomeScreen() {
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <PostCard post={item} />}
+        renderItem={({ item }) => (
+  <PostCard post={item} onRepost={handleRepost} />
+)}
        />
 
 

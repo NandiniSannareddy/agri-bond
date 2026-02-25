@@ -11,6 +11,7 @@ import { auth } from './firebase/firebaseConfig';
 import WelcomeScreen from './screens/WelcomeScreen';
 import CompleteProfileScreen from './screens/CompleteProfileScreen';
 import HomeScreen from './screens/HomeScreen';
+import MessagesStack from './navigation/MessagesStack';   
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -49,7 +50,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Post" component={CreatePostScreen} />
-      <Tab.Screen name="Messages" component={MessagesScreen} />
+      <Tab.Screen name="Messages" component={MessagesStack} />
     </Tab.Navigator>
   );
 }
