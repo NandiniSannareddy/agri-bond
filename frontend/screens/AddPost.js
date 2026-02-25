@@ -22,9 +22,14 @@ export default function AddPost() {
   const [emojiModal, setEmojiModal] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
 
+  // Poll States
+  const [showPoll, setShowPoll] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [options, setOptions] = useState(['', '']);
+
   const emojis = ['😀','😂','😍','🔥','🥳','😎','❤️','👍','🎉','😢'];
 
-  // 📷 Multiple Gallery Pick
+  // Gallery (multiple)
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return;
@@ -40,7 +45,7 @@ export default function AddPost() {
     }
   };
 
-  // 📸 Camera
+  // Camera
   const openCamera = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) return;
@@ -75,6 +80,9 @@ export default function AddPost() {
 
     setPostText('');
     setMediaList([]);
+    setShowPoll(false);
+    setPollQuestion('');
+    setOptions(['', '']);
   };
 
   return (
@@ -91,7 +99,7 @@ export default function AddPost() {
           multiline
         />
 
-        {/* Media Preview List */}
+        {/* MEDIA PREVIEW */}
         {mediaList.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {mediaList.map((item, index) => (
@@ -110,7 +118,6 @@ export default function AddPost() {
                   />
                 )}
 
-                {/* Remove Button */}
                 <TouchableOpacity
                   style={styles.removeBtn}
                   onPress={() => removeMedia(index)}
@@ -123,9 +130,41 @@ export default function AddPost() {
           </ScrollView>
         )}
 
-        {/* Icons Row */}
-        <View style={styles.iconRow}>
+        {/* POLL UI */}
+        {showPoll && (
+          <View style={styles.pollContainer}>
+            <TextInput
+              placeholder="Poll Question"
+              style={styles.pollInput}
+              value={pollQuestion}
+              onChangeText={setPollQuestion}
+            />
 
+            {options.map((option, index) => (
+              <TextInput
+                key={index}
+                placeholder={`Option ${index + 1}`}
+                style={styles.pollInput}
+                value={option}
+                onChangeText={(text) => {
+                  const updated = [...options];
+                  updated[index] = text;
+                  setOptions(updated);
+                }}
+              />
+            ))}
+
+            <TouchableOpacity
+              onPress={() => setOptions([...options, ''])}
+              style={styles.addOptionBtn}
+            >
+              <Text style={{ color: '#8e24aa' }}>+ Add Option</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ICON ROW */}
+        <View style={styles.iconRow}>
           <TouchableOpacity onPress={pickImage}>
             <MaterialIcons name="photo-library" size={26} color="#1976d2" />
           </TouchableOpacity>
@@ -138,10 +177,9 @@ export default function AddPost() {
             <Ionicons name="happy-outline" size={26} color="#f9a825" />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => alert("Poll coming soon 📊")}>
+          <TouchableOpacity onPress={() => setShowPoll(!showPoll)}>
             <FontAwesome5 name="poll" size={22} color="#8e24aa" />
           </TouchableOpacity>
-
         </View>
 
       </View>
@@ -150,7 +188,7 @@ export default function AddPost() {
         <Text style={styles.postButtonText}>Post</Text>
       </TouchableOpacity>
 
-      {/* Emoji Modal */}
+      {/* EMOJI MODAL */}
       <Modal visible={emojiModal} transparent animationType="slide">
         <View style={styles.modalContainer}>
           <View style={styles.emojiBox}>
@@ -168,7 +206,7 @@ export default function AddPost() {
         </View>
       </Modal>
 
-      {/* Success Modal */}
+      {/* SUCCESS MODAL */}
       <Modal visible={successModal} transparent animationType="fade">
         <View style={styles.successContainer}>
           <View style={styles.successBox}>
@@ -185,85 +223,22 @@ export default function AddPost() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    marginTop: 50,
-    backgroundColor: '#f5f5f5'
-  },
-  heading: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 20
-  },
-  postBox: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#ddd'
-  },
-  input: {
-    minHeight: 80,
-    textAlignVertical: 'top'
-  },
-  iconRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 15
-  },
-  preview: {
-    width: 120,
-    height: 120,
-    borderRadius: 10
-  },
-  mediaWrapper: {
-    marginRight: 10,
-    position: 'relative'
-  },
-  removeBtn: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#fff',
-    borderRadius: 20
-  },
-  postButton: {
-    backgroundColor: '#2e7d32',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20
-  },
-  postButtonText: {
-    color: '#fff',
-    fontWeight: 'bold'
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.3)'
-  },
-  emojiBox: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20
-  },
-  emoji: {
-    fontSize: 30,
-    margin: 10
-  },
-  successContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)'
-  },
-  successBox: {
-    backgroundColor: '#fff',
-    padding: 30,
-    borderRadius: 15,
-    alignItems: 'center'
-  }
+  container: { flex:1, padding:20, marginTop:50, backgroundColor:'#f5f5f5' },
+  heading: { fontSize:22, fontWeight:'bold', marginBottom:20 },
+  postBox: { backgroundColor:'#fff', padding:15, borderRadius:15, borderWidth:1, borderColor:'#ddd' },
+  input: { minHeight:80, textAlignVertical:'top' },
+  preview: { width:120, height:120, borderRadius:10 },
+  mediaWrapper: { marginRight:10, position:'relative' },
+  removeBtn: { position:'absolute', top:-8, right:-8, backgroundColor:'#fff', borderRadius:20 },
+  iconRow: { flexDirection:'row', justifyContent:'space-around', marginTop:15 },
+  pollContainer: { marginTop:15, padding:10, backgroundColor:'#f3e5f5', borderRadius:10 },
+  pollInput: { borderWidth:1, borderColor:'#ccc', borderRadius:8, padding:8, marginBottom:8, backgroundColor:'#fff' },
+  addOptionBtn: { alignItems:'center', marginTop:5 },
+  postButton: { backgroundColor:'#2e7d32', padding:15, borderRadius:8, alignItems:'center', marginTop:20 },
+  postButtonText: { color:'#fff', fontWeight:'bold' },
+  modalContainer: { flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.3)' },
+  emojiBox: { backgroundColor:'#fff', padding:20, borderTopLeftRadius:20, borderTopRightRadius:20 },
+  emoji: { fontSize:30, margin:10 },
+  successContainer: { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'rgba(0,0,0,0.4)' },
+  successBox: { backgroundColor:'#fff', padding:30, borderRadius:15, alignItems:'center' }
 });
