@@ -1,15 +1,16 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AntDesign, Feather } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { View, Text } from 'react-native';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase/firebaseConfig';
 
 import WelcomeScreen from './screens/WelcomeScreen';
 import CompleteProfileScreen from './screens/CompleteProfileScreen';
 import HomeScreen from './screens/HomeScreen';
-
-import { View, Text } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -37,13 +38,12 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: '#2e7d32',
         tabBarIcon: ({ color, size }) => {
-          if (route.name === 'Home') {
+          if (route.name === 'Home')
             return <AntDesign name="home" size={size} color={color} />;
-          } else if (route.name === 'Post') {
+          if (route.name === 'Post')
             return <AntDesign name="plus" size={size} color={color} />;
-          } else if (route.name === 'Messages') {
+          if (route.name === 'Messages')
             return <Feather name="message-circle" size={size} color={color} />;
-          }
         },
       })}
     >
@@ -55,16 +55,36 @@ function MainTabs() {
 }
 
 export default function App() {
+
+  const [initialRoute, setInitialRoute] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setInitialRoute("MainTabs");
+      } else {
+        setInitialRoute("Welcome");
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  if (!initialRoute) return null;
+
   return (
     <>
-    <StatusBar style="dark" />
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Welcome" component={WelcomeScreen} />
-        <Stack.Screen name="Profile" component={CompleteProfileScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabs} />
-      </Stack.Navigator>
-    </NavigationContainer>
+      <StatusBar style="dark" />
+      <NavigationContainer>
+        <Stack.Navigator
+          screenOptions={{ headerShown: false }}
+          initialRouteName={initialRoute}
+        >
+          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+          <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+        </Stack.Navigator>
+      </NavigationContainer>
     </>
   );
 }
