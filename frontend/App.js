@@ -10,6 +10,9 @@ import HomeScreen from './screens/HomeScreen';
 
 import { View, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import AddPost from "./screens/AddPost";
+
+//<Stack.Screen name="AddPost" component={AddPost} />
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -48,7 +51,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Post" component={CreatePostScreen} />
+      <Tab.Screen name="Post" component={AddPost} />
       <Tab.Screen name="Messages" component={MessagesScreen} />
     </Tab.Navigator>
   );

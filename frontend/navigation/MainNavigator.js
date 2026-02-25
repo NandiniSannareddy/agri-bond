@@ -8,6 +8,7 @@ export default function MainNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="AddPost" component={AddPost} />
     </Stack.Navigator>
   );
 }
