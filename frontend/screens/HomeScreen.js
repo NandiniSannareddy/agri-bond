@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,80 +6,91 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
-  TextInput
-} from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import PostCard from '../components/PostCard';
-import { StatusBar } from 'expo-status-bar';
+  TextInput,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import axios from "axios";
+import { auth } from "../firebase/firebaseConfig";
+import { useUser } from "../context/UserContext";
+import PostCard from "../components/PostCard";
 
-const posts = [
-  {
-    id: 1,
-    name: 'Ramesh',
-    location: 'Guntur, Andhra Pradesh',
-    profileImage: 'https://i.pravatar.cc/150?img=1',
-    content: 'Today harvested fresh tomatoes 🍅',
-    image: 'https://images.unsplash.com/photo-1592928300924-0d8bfc2c5b4e',
-    likes: 12,
-    comments: 4,
-  },
-  {
-    id: 2,
-    name: 'Suresh',
-    location: 'Warangal, Telangana',
-    profileImage: 'https://i.pravatar.cc/150?img=2',
-    content: 'Drip irrigation working well this season',
-    video: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    likes: 12,
-    comments: 4,
-  },
-];
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function HomeScreen() {
+  const userProfile = useUser();
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewMode, setViewMode] = useState("local");
 
-  const renderPost = ({ item }) => (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <Image
-          source={{ uri: 'https://i.pravatar.cc/100' }}
-          style={styles.profileImage}
-        />
-        <View>
-          <Text style={styles.name}>{item.name}</Text>
-          <Text style={styles.location}>Farmer</Text>
-        </View>
-      </View>
+  useEffect(() => {
+    if (!userProfile) return;
+    fetchPosts();
+  }, [viewMode, userProfile]);
 
-      <Text style={styles.postContent}>{item.content}</Text>
-    </View>
-  );
+  const fetchPosts = async () => {
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+
+      const res = await axios.post(
+        `${API_URL}/api/posts/all`,
+        {
+          idToken,
+          viewMode
+        }
+      );
+
+      setPosts(res.data);
+
+    } catch (error) {
+      console.log("FETCH ERROR:", error);
+    }finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+  };
+
+    if (!userProfile) {
+      return <Text>Loading...</Text>;
+    }
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchPosts();
+  };
+
+
+
+const renderPost = ({ item }) => (
+  <PostCard
+    post={item}
+    viewMode={viewMode}
+    userLanguage={userProfile.languageCode}
+  />
+);
 
   return (
     <View style={styles.container}>
-        <StatusBar style="dark" />
+      <StatusBar style="dark" />
 
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.appName}>Agri Bond🌾</Text>
-
+        <Text style={styles.appName}>Agri Bond 🌾</Text>
         <TouchableOpacity>
           <Feather name="settings" size={22} color="#2e7d32" />
         </TouchableOpacity>
       </View>
 
-      {/* PROFILE + SEARCH BAR */}
+      {/* SEARCH BAR */}
       <View style={styles.searchRow}>
-
-        {/* Profile Avatar */}
-        <TouchableOpacity>
-          <Image
-            source={{ uri: 'https://i.pravatar.cc/100' }}
-            style={styles.userAvatar}
-          />
-        </TouchableOpacity>
-
-        {/* Search Bar */}
+        <Image
+          source={{ uri: "https://i.pravatar.cc/100" }}
+          style={styles.userAvatar}
+        />
         <View style={styles.searchContainer}>
           <Feather name="search" size={18} color="#777" />
           <TextInput
@@ -87,17 +98,36 @@ export default function HomeScreen() {
             style={styles.searchInput}
           />
         </View>
-
       </View>
+      <View style={{ flexDirection: "row", marginLeft:"auto", marginRight:9 }}>
+        <TouchableOpacity onPress={() => setViewMode("local")}>
+          <Text style={{ marginRight: 15 }}>
+            {viewMode === "local" ? "🔘" : "⚪"} My Language
+          </Text>
+        </TouchableOpacity>
 
+        <TouchableOpacity onPress={() => setViewMode("en")}>
+          <Text>
+            {viewMode === "en" ? "🔘" : "⚪"} English
+          </Text>
+        </TouchableOpacity>
+      </View>
       {/* POSTS */}
-      <FlatList
-        data={posts}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <PostCard post={item} />}
-       />
-
-
+      {loading ? (
+        <ActivityIndicator size="large" color="#2e7d32" />
+      ) : (
+        <FlatList
+          data={posts}
+          keyExtractor={(item) => item._id}
+          renderItem={renderPost}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -105,88 +135,98 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    marginTop:9,
+    backgroundColor: "#ffffff",
   },
 
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#ffffff',
-    elevation: 3,
-    marginTop:15
+    marginTop: 15,
   },
 
   appName: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2e7d32'
+    fontWeight: "bold",
+    color: "#2e7d32",
   },
 
   searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 15,
     paddingVertical: 10,
-    backgroundColor: '#ffffff'
   },
 
   userAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 10
+    marginRight: 10,
   },
 
   searchContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f1f1',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f1f1",
     paddingHorizontal: 10,
     borderRadius: 20,
-    height: 40
+    height: 40,
   },
 
   searchInput: {
     flex: 1,
-    marginLeft: 8
+    marginLeft: 8,
   },
 
   postCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     padding: 15,
     borderRadius: 12,
-    marginBottom: 15,
-    elevation: 2
+    margin: 10,
+    elevation: 2,
   },
 
   postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
   },
 
   profileImage: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 10
+    marginRight: 10,
   },
 
   name: {
-    fontWeight: 'bold'
+    fontWeight: "bold",
   },
 
   location: {
     fontSize: 12,
-    color: '#777'
+    color: "#777",
   },
 
   postContent: {
     fontSize: 14,
-    lineHeight: 20
-  }
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+
+  postImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
 });
