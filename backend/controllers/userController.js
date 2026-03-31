@@ -39,3 +39,40 @@ export const checkUser = async (req, res) => {
 
   res.json({ exists: false });
 };
+
+// controllers/userController.js
+
+export const getProfile = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+
+    const user = await User.findOne({
+      firebaseUid: decoded.uid,
+    });
+
+    res.json(user);
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch profile" });
+  }
+};
+
+export const uploadProfileImage = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const user = await User.findOne({ firebaseUid: decoded.uid });
+
+    user.profileImage = req.file.path;
+
+    await user.save();
+
+    res.json({ profileImage: user.profileImage });
+
+  } catch (error) {
+    res.status(500).json({ message: "Upload failed" });
+  }
+};

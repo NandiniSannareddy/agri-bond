@@ -113,16 +113,15 @@ export default function WelcomeScreen({ navigation }) {
 
       const result = await confirmation.confirm(otp);
       const idToken = await result.user.getIdToken();
-
       const res = await axios.post(
-        `${API_URL}/api/auth/verify-phone`,
+        `${API_URL}/api/user/check-user`,
         { idToken }
       );
 
       if (res.data.exists)
         navigation.replace("MainTabs");
       else
-        navigation.replace("Profile");
+        navigation.replace("CompleteProfile");
 
     } catch (error) {
       console.log("OTP ERROR:", error);

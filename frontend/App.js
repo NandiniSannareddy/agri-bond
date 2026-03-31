@@ -4,39 +4,24 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AntDesign, Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase/firebaseConfig';
+import axios from "axios";
 
 import WelcomeScreen from './screens/WelcomeScreen';
 import CompleteProfileScreen from './screens/CompleteProfileScreen';
 import HomeScreen from './screens/HomeScreen';
-import MessagesStack from './navigation/MessagesStack';   
-
-import { View, Text } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import MessagesStack from './navigation/MessagesStack';
 import AddPost from "./screens/AddPost";
 
-//<Stack.Screen name="AddPost" component={AddPost} />
+import { UserProvider, useUser } from "./context/UserContext";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function CreatePostScreen() {
-  return (
-    <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-      <Text>Create Post Screen</Text>
-    </View>
-  );
-}
-
-function MessagesScreen() {
-  return (
-    <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-      <Text>Messages Screen</Text>
-    </View>
-  );
-}
+/* ---------------------- TABS ---------------------- */
 
 function MainTabs() {
   return (
@@ -56,20 +41,40 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Post" component={AddPost} />
-      <Tab.Screen name="Messages" component={MessagesScreen} />
+      <Tab.Screen name="Messages" component={MessagesStack} />
     </Tab.Navigator>
   );
 }
 
-export default function App() {
+/* ---------------------- APP CONTENT ---------------------- */
+/* This is INSIDE UserProvider so useUser works here */
+
+function AppContent() {
 
   const [initialRoute, setInitialRoute] = useState(null);
+  const { setUserProfile } = useUser();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setInitialRoute("MainTabs");
+        try {
+          const idToken = await user.getIdToken();
+
+          const res = await axios.post(
+            `${API_URL}/api/user/profile`,
+            { idToken }
+          );
+
+          setUserProfile(res.data);
+          setInitialRoute("MainTabs");
+
+        } catch (error) {
+          console.log("PROFILE ERROR:", error);
+          setInitialRoute("Welcome");
+        }
+
       } else {
+        setUserProfile(null);
         setInitialRoute("Welcome");
       }
     });
@@ -80,18 +85,27 @@ export default function App() {
   if (!initialRoute) return null;
 
   return (
-    <>
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={initialRoute}
+      >
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
+        <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+/* ---------------------- ROOT APP ---------------------- */
+/* ONLY wrapping happens here */
+
+export default function App() {
+  return (
+    <UserProvider>
       <StatusBar style="dark" />
-      <NavigationContainer>
-        <Stack.Navigator
-          screenOptions={{ headerShown: false }}
-          initialRouteName={initialRoute}
-        >
-          <Stack.Screen name="Welcome" component={WelcomeScreen} />
-          <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </>
+      <AppContent />
+    </UserProvider>
   );
 }

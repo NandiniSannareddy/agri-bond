@@ -14,6 +14,7 @@ import statesData from "../assets/states-districts.json";
 import { languages } from "../data/languages";
 import axios from "axios";
 import { getAuth } from "firebase/auth";
+import { useUser } from "../context/UserContext";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -23,6 +24,7 @@ export default function CompleteProfileScreen({ navigation }) {
   const [state, setState] = useState("");
   const [district, setDistrict] = useState("");
   const [language, setLanguage] = useState("");
+  const { setUserProfile } = useUser();
 
   const selectedState = statesData.states.find(s => s.state === state);
 
@@ -44,7 +46,12 @@ export default function CompleteProfileScreen({ navigation }) {
       language,
       languageCode: selectedLanguage.code
     });
+  const res = await axios.post(`${API_URL}/api/user/profile`, {
+    idToken
+  });
 
+  // 🔥 Update global context
+  setUserProfile(res.data);
     navigation.replace("MainTabs");
   };
 
