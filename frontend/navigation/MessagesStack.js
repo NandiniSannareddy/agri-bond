@@ -1,26 +1,15 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import MessagesScreen from "../screens/MessagesScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 import ChatScreen from "../screens/ChatScreen";
+import ChatRoomScreen from "../screens/ChatRoomScreen";
 
 const Stack = createNativeStackNavigator();
 
 export default function MessagesStack() {
   return (
     <Stack.Navigator>
-      <Stack.Screen
-        name="Inbox"
-        component={MessagesScreen}
-        options={{ title: "Messages" }}
-      />
-      <Stack.Screen
-        name="Chat"
-        component={ChatScreen}
-        options={({ route }) => ({
-          title: route.params?.user?.name || "Chat",
-        })}
-      />
-      
+      <Stack.Screen name="Chat" component={ChatScreen} />
     </Stack.Navigator>
   );
 }

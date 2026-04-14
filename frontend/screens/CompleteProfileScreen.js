@@ -19,16 +19,17 @@ import { useUser } from "../context/UserContext";
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function CompleteProfileScreen({ navigation }) {
+  const { userProfile, setUserProfile } = useUser();
 
   const [name, setName] = useState("");
   const [state, setState] = useState("");
   const [district, setDistrict] = useState("");
   const [language, setLanguage] = useState("");
-  const { setUserProfile } = useUser();
 
   const selectedState = statesData.states.find(s => s.state === state);
 
   const handleSave = async () => {
+    try {
     if (!name || !state || !district || !language)
       return Alert.alert("Fill all fields");
 
@@ -37,7 +38,7 @@ export default function CompleteProfileScreen({ navigation }) {
     const idToken = await user.getIdToken();
 
     const selectedLanguage = languages.find(l => l.name === language);
-
+  console.log("STEP 1");
     await axios.post(`${API_URL}/api/user/complete-profile`, {
       idToken,
       name,
@@ -46,14 +47,23 @@ export default function CompleteProfileScreen({ navigation }) {
       language,
       languageCode: selectedLanguage.code
     });
-  const res = await axios.post(`${API_URL}/api/user/profile`, {
-    idToken
-  });
-
-  // 🔥 Update global context
-  setUserProfile(res.data);
-    navigation.replace("MainTabs");
-  };
+    console.log("STEP 2");
+setUserProfile({
+  ...userProfile,
+  name,
+  state,
+  district,
+  language,
+  languageCode: selectedLanguage.code
+});
+  console.log("STEP 4 - User Profile Updated in Context");
+    navigation.navigate("MainTabs");
+    console.log("STEP 5 - Navigation to MainTabs")
+  } catch (error) {
+    console.error("Error saving profile:", error);
+    Alert.alert("Error", "Failed to save profile");
+  } 
+}
 
   return (
     <ScrollView contentContainerStyle={styles.container}>

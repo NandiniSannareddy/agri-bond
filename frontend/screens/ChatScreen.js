@@ -1,470 +1,339 @@
-// FULL ADVANCED CHATSCREEN (EXPO GO ANDROID FIXED + SEPARATE CHAT PER USER)
-
-import React, { useState, useRef, useEffect } from "react";
+/* import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
   FlatList,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  Animated,
-  Dimensions,
-  Alert,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Image
+  Text,
+  TouchableOpacity,
+  View,
+  Image,
+  StyleSheet
 } from "react-native";
+import axios from "axios";
+import { useUser } from "../context/UserContext";
 
-import { MaterialIcons } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
-import * as ImagePicker from "expo-image-picker";
-import * as DocumentPicker from "expo-document-picker";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-const { height } = Dimensions.get("window");
+export default function ChatsScreen({ navigation }) {
+  const { userProfile } = useUser();
+  const MY_ID = userProfile?._id;
 
-export default function ChatScreen({ route }) {
-  const { user } = route.params || {};
-
-  const flatListRef = useRef();
-  const slideAnim = useRef(new Animated.Value(height)).current;
-
-  const [message, setMessage] = useState("");
-  const [allChats, setAllChats] = useState({});
-  const [replyTo, setReplyTo] = useState(null);
-  const [showAttachment, setShowAttachment] = useState(false);
-
-  const messages = allChats[user?.id] || [];
+  const [chats, setChats] = useState([]);
 
   useEffect(() => {
-    flatListRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
+    if (!MY_ID) return;
 
-  useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: showAttachment ? 0 : height,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [showAttachment]);
-  /* ---------------- RECEIVE SHARED POST ---------------- */
-
-/*useEffect(() => {
-  if (route?.params?.sharedPost && user?.id) {
-    const shared = route.params.sharedPost;
-
-    const newMsg = {
-      id: Date.now().toString(),
-      type: "post", // 🔥 NEW TYPE
-      postData: shared,
-      sender: "me",
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      deletedForMe: false,
+    const loadChats = async () => {
+      const { data } = await axios.get(
+        `${API_URL}/api/chat/userChats/${MY_ID}`
+      );
+      setChats(data);
     };
 
-    setAllChats((prev) => ({
-      ...prev,
-      [user.id]: [...(prev[user.id] || []), newMsg],
-    }));
-  }
-}, [route?.params?.sharedPost]);*/
-/* ---------------- RECEIVE SHARED IMAGE + TEXT ---------------- */
- /* useEffect(() => {
-    if ((route?.params?.sharedImage || route?.params?.sharedText) && user?.id) {
-
-      const newMsg = {
-        id: Date.now().toString(),
-        text: route.params.sharedText || "",
-        image: route.params.sharedImage || null,
-        sender: "me",
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        deletedForMe: false,
-      };
-
-      setAllChats((prev) => ({
-        ...prev,
-        [user.id]: [...(prev[user.id] || []), newMsg],
-      }));
-    }
-  }, [route?.params?.sharedImage]);*/
-   /* ---------------- RECEIVE ALL SHARED DATA (FIXED) ---------------- */
-
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const { sharedPost, sharedImage, sharedText } = route?.params || {};
-
-    if (!sharedPost && !sharedImage && !sharedText) return;
-
-    let newMsg;
-
-    if (sharedPost) {
-      newMsg = {
-        id: Date.now().toString(),
-        type: "post",
-        postData: sharedPost,
-        sender: "me",
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        deletedForMe: false,
-      };
-    } else {
-      newMsg = {
-        id: Date.now().toString(),
-        text: sharedText || "",
-        image: sharedImage || null,
-        sender: "me",
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        deletedForMe: false,
-      };
-    }
-
-    setAllChats((prev) => ({
-      ...prev,
-      [user.id]: [...(prev[user.id] || []), newMsg],
-    }));
-
-  }, [route?.params]);
-  /* ---------------- SEND MESSAGE ---------------- */
-
-  const sendMessage = () => {
-    if (!message.trim()) return;
-
-    const newMsg = {
-      id: Date.now().toString(),
-      text: message,
-      sender: "me",
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      replyTo,
-      deletedForMe: false,
-    };
-
-    setAllChats((prev) => ({
-      ...prev,
-      [user.id]: [...(prev[user.id] || []), newMsg],
-    }));
-
-    setMessage("");
-    setReplyTo(null);
-  };
-
-  /* ---------------- ATTACHMENTS ---------------- */
-
-  const openCamera = async () => {
-    await ImagePicker.requestCameraPermissionsAsync();
-    const result = await ImagePicker.launchCameraAsync({});
-    if (!result.canceled) {
-      sendAttachment("📷 Photo Captured");
-    }
-    setShowAttachment(false);
-  };
-
-  const openGallery = async () => {
-    await ImagePicker.requestMediaLibraryPermissionsAsync();
-    const result = await ImagePicker.launchImageLibraryAsync({});
-    if (!result.canceled) {
-      sendAttachment("🖼 Image Selected");
-    }
-    setShowAttachment(false);
-  };
-
-  const pickDocument = async () => {
-    const result = await DocumentPicker.getDocumentAsync({});
-    if (!result.canceled) {
-      sendAttachment("📄 " + result.assets[0].name);
-    }
-    setShowAttachment(false);
-  };
-
-  const sendAttachment = (text) => {
-    const newMsg = {
-      id: Date.now().toString(),
-      text,
-      sender: "me",
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      deletedForMe: false,
-    };
-
-    setAllChats((prev) => ({
-      ...prev,
-      [user.id]: [...(prev[user.id] || []), newMsg],
-    }));
-  };
-
-  const deleteMessage = (id) => {
-    setAllChats((prev) => ({
-      ...prev,
-      [user.id]: prev[user.id].map((msg) =>
-        msg.id === id ? { ...msg, deletedForMe: true } : msg
-      ),
-    }));
-  };
-
-  const renderItem = ({ item }) => {
-    if (item.deletedForMe) return null;
-
-    return (
-      <TouchableOpacity
-        onLongPress={() =>
-          Alert.alert("Options", "", [
-            { text: "Reply", onPress: () => setReplyTo(item) },
-            { text: "Copy", onPress: () => Clipboard.setStringAsync(item.text) },
-            { text: "Delete", onPress: () => deleteMessage(item.id) },
-            { text: "Cancel", style: "cancel" },
-          ])
-        }
-        style={[
-          styles.message,
-          item.sender === "me" ? styles.myMsg : styles.otherMsg,
-        ]}
-      >
-        {item.type === "post" ? (
-          <View style={{ backgroundColor: "#f3f2ef", padding: 10, borderRadius: 10 }}>
-            <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
-              {item.postData.name}
-            </Text>
-
-            <Text style={{ marginBottom: 6 }}>
-              {item.postData.content}
-            </Text>
-
-            {item.postData.image && (
-              <Image
-                source={{ uri: item.postData.image }}
-                style={{ height: 150, borderRadius: 10 }}
-              />
-            )}
-          </View>
-        ) : (
-          <>
-        {item.replyTo && (
-          <View style={styles.replyBox}>
-            <Text style={{ fontSize: 12 }}>
-              Replying to: {item.replyTo.text}
-            </Text>
-          </View>
-        )}
-
-        <Text style={{ color: item.sender === "me" ? "#fff" : "#000" }}>
-          {item.text}
-        </Text>
-        </>
-        )}
-        <Text
-          style={[
-            styles.timeText,
-            { color: item.sender === "me" ? "#ddd" : "#555" },
-          ]}
-        >
-          {item.time}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+    loadChats();
+  }, [MY_ID]);
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.select({
-          ios: 90,
-          android: 80,
-        })}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={{ flex: 1 }}>
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              keyExtractor={(item) => item.id}
-              renderItem={renderItem}
-              contentContainerStyle={{ padding: 10, paddingBottom: 100 }}
-              keyboardShouldPersistTaps="handled"
+    <FlatList
+      data={chats}
+      keyExtractor={(item) => item._id}
+      renderItem={({ item }) => {
+        const otherUser = item.members.find(
+          (m) => m._id !== MY_ID
+        );
+
+        return (
+          <TouchableOpacity
+            style={styles.chatItem}
+            onPress={() =>
+              navigation.navigate("ChatRoom", {
+                chatId: item._id,
+                user: otherUser,
+              })
+            }
+          >
+            <Image
+              source={{ uri: otherUser.profileImage }}
+              style={styles.avatar}
             />
 
-            {replyTo && (
-              <View style={styles.replyPreview}>
-                <Text>Replying to: {replyTo.text}</Text>
+            <View style={styles.content}>
+              <View style={styles.row}>
+                <Text style={styles.name}>{otherUser.name}</Text>
+                <Text style={styles.time}>
+                  {item.updatedAt?.slice(11, 16)}
+                </Text>
               </View>
-            )}
 
-            {/* INPUT AREA */}
-            <View style={styles.inputWrapper}>
-              <TouchableOpacity onPress={() => setShowAttachment(true)}>
-                <MaterialIcons name="attach-file" size={30} color="#0A66C2" />
-              </TouchableOpacity>
-
-              <TextInput
-                value={message}
-                onChangeText={setMessage}
-                placeholder="Message..."
-                style={styles.input}
-                multiline
-              />
-
-              <TouchableOpacity
-                style={styles.sendButton}
-                onPress={sendMessage}
-              >
-                <MaterialIcons name="send" size={20} color="#fff" />
-              </TouchableOpacity>
+              <Text numberOfLines={1} style={styles.lastMsg}>
+                {item.lastMessage?.text || "Media"}
+              </Text>
             </View>
-
-            {/* ATTACHMENT SHEET (UNCHANGED) */}
-            {showAttachment && (
-              <>
-                <TouchableWithoutFeedback
-                  onPress={() => setShowAttachment(false)}
-                >
-                  <View style={styles.overlay} />
-                </TouchableWithoutFeedback>
-
-                <Animated.View
-                  style={[
-                    styles.bottomSheet,
-                    { transform: [{ translateY: slideAnim }] },
-                  ]}
-                >
-                  <TouchableOpacity onPress={pickDocument} style={styles.sheetItem}>
-                    <Text style={styles.sheetText}>📄 Send Document</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={openCamera} style={styles.sheetItem}>
-                    <Text style={styles.sheetText}>📷 Take Photo</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={openGallery} style={styles.sheetItem}>
-                    <Text style={styles.sheetText}>🖼 Choose From Gallery</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={() => setShowAttachment(false)}
-                  >
-                    <Text style={{ fontWeight: "bold" }}>Cancel</Text>
-                  </TouchableOpacity>
-                </Animated.View>
-              </>
-            )}
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </TouchableOpacity>
+        );
+      }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  message: {
-    padding: 14,
-    marginVertical: 6,
-    borderRadius: 18,
-    maxWidth: "75%",
+  chatItem: {
+    flexDirection: "row",
+    padding: 15,
+    borderBottomWidth: 0.5,
+    borderColor: "#eee",
   },
-  myMsg: { backgroundColor: "#0A66C2", alignSelf: "flex-end" },
-  otherMsg: { backgroundColor: "#e4e6eb", alignSelf: "flex-start" },
 
-  timeText: {
-    fontSize: 10,
-    alignSelf: "flex-end",
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+
+  content: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  name: {
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+
+  time: {
+    fontSize: 12,
+    color: "gray",
+  },
+
+  lastMsg: {
+    color: "gray",
     marginTop: 4,
   },
+}); */
 
-  inputWrapper: {
+
+
+
+import React, { useEffect, useState } from "react";
+import {
+  FlatList,
+  Text,
+  TouchableOpacity,
+  View,
+  Image,
+  StyleSheet,
+} from "react-native";
+import axios from "axios";
+import { useUser } from "../context/UserContext";
+import socket from "../services/socket";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+export default function ChatsScreen({ navigation }) {
+  const { userProfile } = useUser();
+  const MY_ID = userProfile?._id;
+
+  const [chats, setChats] = useState([]);
+
+  /* ---------------- FORMAT TIME ---------------- */
+  const formatTime = (date) => {
+    if (!date) return "";
+
+    const msgDate = new Date(date);
+    const now = new Date();
+
+    const isToday =
+      msgDate.toDateString() === now.toDateString();
+
+    if (isToday) {
+      return msgDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } else {
+      return msgDate.toLocaleDateString();
+    }
+  };
+
+  /* ---------------- LOAD CHATS ---------------- */
+  const loadChats = async () => {
+    try {
+      const { data } = await axios.get(
+        `${API_URL}/api/chat/userChats/${MY_ID}`
+      );
+
+      // 🔥 sort by latest message
+      const sorted = data.sort((a, b) => {
+        const aTime = a.lastMessage?.createdAt || a.updatedAt;
+        const bTime = b.lastMessage?.createdAt || b.updatedAt;
+        return new Date(bTime) - new Date(aTime);
+      });
+
+      setChats(sorted);
+    } catch (err) {
+      console.log("CHAT LOAD ERROR:", err);
+    }
+  };
+
+useEffect(() => {
+  if (!MY_ID) return;
+
+  loadChats();
+
+  socket.emit("addUser", MY_ID);
+
+  socket.on("receiveMessage", () => {
+    loadChats();
+  });
+
+  // ✅ NEW: when messages read → remove badge
+  socket.on("messagesRead", () => {
+    loadChats();
+  });
+
+  return () => {
+    socket.off("receiveMessage");
+    socket.off("messagesRead");
+  };
+}, [MY_ID]);
+
+
+  return (
+    !chats.length ? (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No chats yet</Text>
+      </View>
+    ) : (   
+    <FlatList
+      data={chats}
+      keyExtractor={(item) => item._id}
+      renderItem={({ item }) => {
+        const otherUser = item.members.find(
+          (m) => m._id !== MY_ID
+        );
+
+        const lastMsg = item.lastMessage;
+
+        return (
+          <TouchableOpacity
+            style={styles.chatItem}
+            onPress={() =>
+              navigation.navigate("ChatRoom", {
+                chatId: item._id,
+                user: otherUser,
+              })
+            }
+          >
+            {/* PROFILE */}
+            <Image
+              source={{ uri: otherUser.profileImage }}
+              style={styles.avatar}
+            />
+
+            {/* CONTENT */}
+            <View style={styles.content}>
+              <View style={styles.row}>
+                <Text style={styles.name}>{otherUser.name}</Text>
+
+                <Text style={styles.time}>
+                  {formatTime(
+                    lastMsg?.createdAt || item.updatedAt
+                  )}
+                </Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text numberOfLines={1} style={styles.lastMsg}>
+                  {lastMsg?.text
+                    ? lastMsg.text
+                    : lastMsg?.media
+                    ? "📷 Media"
+                    : "No messages"}
+                </Text>
+
+                {/* 🔥 UNREAD BADGE (mock for now) */}
+                {item.unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {item.unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      }}
+    />
+  )
+);
+}
+
+/* ---------------- STYLES ---------------- */
+
+const styles = StyleSheet.create({
+  chatItem: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: 8,
-    borderTopWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "#fff",
+    padding: 15,
+    borderBottomWidth: 0.5,
+    borderColor: "#eee",
   },
 
-  input: {
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+
+  content: {
     flex: 1,
-    backgroundColor: "#f0f2f5",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginHorizontal: 8,
-    minHeight: 40,
-    maxHeight: 100,
-    fontSize: 14,
+    marginLeft: 10,
   },
 
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#0A66C2",
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  name: {
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+
+  time: {
+    fontSize: 12,
+    color: "gray",
+  },
+
+  lastMsg: {
+    color: "gray",
+    marginTop: 4,
+    maxWidth: "80%",
+  },
+
+  badge: {
+    backgroundColor: "#2e7d32",
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+  },
+  emptyContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-
-  replyBox: {
-    backgroundColor: "#ddd",
-    padding: 6,
-    borderRadius: 6,
-    marginBottom: 6,
+  emptyText: {
+    fontSize: 16,
+    color: "gray",
   },
 
-  replyPreview: {
-    padding: 8,
-    backgroundColor: "#eee",
-  },
-
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-
-  bottomSheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#fff",
-    padding: 25,
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-  },
-
-  sheetItem: {
-    paddingVertical: 18,
-  },
-
-  sheetText: {
-    fontSize: 18,
-  },
-
-  cancelBtn: {
-    marginTop: 15,
-    padding: 18,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 12,
-    alignItems: "center",
-  },
 });

@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Video } from "expo-av";
 import axios from "axios";
 import { auth } from "../firebase/firebaseConfig";
+import { KeyboardAvoidingView, Platform } from "react-native";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -22,6 +23,11 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
   const [selectedOption, setSelectedOption] = useState(null);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const liked = updatedPost?.likes?.some(
+  id => id?.toString() === updatedPost?.currentUserId?.toString()
+);
+
+const [showAllComments, setShowAllComments] = useState(false);
 
   const currentViewLang =
     viewMode === "en" ? "en" : userLanguage;
@@ -31,7 +37,7 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
   
 
   // ✅ detect already voted
-  useEffect(() => {
+/*   useEffect(() => {
     if (!updatedPost.poll) return;
 
     updatedPost.poll.options.forEach((opt, index) => {
@@ -39,26 +45,59 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
         setSelectedOption(index);
       }
     });
-  }, [updatedPost]);
+  }, [updatedPost]); */
+
+     useEffect(() => {
+  if (!updatedPost.poll) return;
+
+  let found = null;
+
+  updatedPost.poll.options.forEach((opt, index) => {
+    if (opt.votes.length > 0) {
+      found = index;
+    }
+  });
+
+  setSelectedOption(found);
+}, [updatedPost]);
 
   // ✅ LIKE
   const handleLike = async () => {
-    try {
-      setLoading(true);
-      const idToken = await auth.currentUser.getIdToken();
-      const { data } = await axios.post(`${API_URL}/api/posts/like`, {
-        idToken,
-        postId: updatedPost._id,
-      });
+  try {
+    setLoading(true);
+    setUpdatedPost(prev => {
+  const userId = prev.currentUserId;
 
-      setUpdatedPost(data);
+  const alreadyLiked = prev.likes.some(
+    id => id.toString() === userId
+  );
 
-    } catch (err) {
-      console.log("LIKE ERROR:", err.response?.data || err.message);
-    } finally {
-      setLoading(false);
-    }
+  return {
+    ...prev,
+    likes: alreadyLiked
+      ? prev.likes.filter(id => id.toString() !== userId)
+      : [...prev.likes, userId]
   };
+});
+
+    const idToken = await auth.currentUser.getIdToken();
+
+    const { data } = await axios.post(`${API_URL}/api/posts/like`, {
+      idToken,
+      postId: updatedPost._id,
+    });
+    setUpdatedPost(data);
+
+    // ✅ IMPORTANT FIX
+   
+   // setLiked(prev => !prev);
+
+  } catch (err) {
+    console.log("LIKE ERROR:", err.response?.data || err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ✅ COMMENT
   const handleComment = async () => {
@@ -66,8 +105,9 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
 
     try {
       setLoading(true);
+      const idToken = await auth.currentUser.getIdToken();
 
-      const { data } = await axios.post(`${API_URL}/api/post/comment`, {
+      const { data } = await axios.post(`${API_URL}/api/posts/comment`, {
         idToken,
         postId: updatedPost._id,
         text: comment,
@@ -82,28 +122,62 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
       setLoading(false);
     }
   };
+  const handleLikeComment = async (commentId) => {
+    console.log("LIKE COMMENT CLICKED:", commentId);
+  const idToken = await auth.currentUser.getIdToken();
 
+  const { data } = await axios.post(
+    `${API_URL}/api/posts/comment/like`,
+    { idToken, postId: updatedPost._id, commentId }
+  );
+
+  setUpdatedPost(data);
+};
+const handleDeleteComment = async (commentId) => {
+  console.log("DELETE CLICKED:", commentId);
+  const idToken = await auth.currentUser.getIdToken();
+
+  const { data } = await axios.post(
+    `${API_URL}/api/posts/comment/delete`,
+    { idToken, postId: updatedPost._id, commentId }
+  );
+
+  setUpdatedPost(data);
+};
+const [replyText, setReplyText] = useState("");
+const [replyTo, setReplyTo] = useState(null);
+
+const handleReply = async () => {
+   console.log("REPLY CLICKED:", replyTo, replyText);
+  const idToken = await auth.currentUser.getIdToken();
+  
+
+  const { data } = await axios.post(
+    `${API_URL}/api/posts/comment/reply`,
+    {
+      idToken,
+      postId: updatedPost._id,
+      commentId: replyTo,
+      text: replyText
+    }
+  );
+
+  setUpdatedPost(data);
+  setReplyText("");
+  setReplyTo(null);
+};
   // ✅ POLL
-  const handleVote = async (index) => {
-  console.log("INDEX:", index); // DEBUG
-
-  if (selectedOption !== null) return;
-
+ const handleVote = async (index) => {
   try {
     const idToken = await auth.currentUser.getIdToken();
-    console.log("DATA SENT:", {
-  idToken,
-  postId: updatedPost._id,
-  optionIndex: index
-});
+
     const { data } = await axios.post(`${API_URL}/api/posts/vote`, {
       idToken,
       postId: updatedPost._id,
-      optionIndex: Number(index), // ✅ FORCE NUMBER
+      optionIndex: index
     });
 
-    setUpdatedPost(data);
-    setSelectedOption(index);
+    setUpdatedPost(data); // ✅ ONLY THIS
 
   } catch (err) {
     console.log("POLL ERROR:", err.response?.data || err.message);
@@ -118,6 +192,10 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
   };
 
   return (
+  <KeyboardAvoidingView
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+    style={{ flex: 1 }}
+  >
     <View style={styles.card}>
 
       {/* HEADER */}
@@ -179,7 +257,7 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
             const isSelected = selectedOption === index;
 
             return (
-              <TouchableOpacity
+              /*<TouchableOpacity
                 key={index}
                 disabled={loading}
                 onPress={() => handleVote(index)}
@@ -197,7 +275,49 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
                 <Text style={{ color: isSelected ? "white" : "gray" }}>
                   {Math.round(percent)}%
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity>*/
+              <TouchableOpacity
+  key={index}
+  disabled={loading}
+  onPress={() => handleVote(index)}
+  style={{
+    marginTop: 8,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#f1f1f1"
+  }}
+>
+
+  {/* ✅ PERCENTAGE BAR */}
+  <View
+    style={{
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: `${Math.round(percent)}%`,
+      backgroundColor: isSelected ? "#1976d2" : "#d3d3d3"
+    }}
+  />
+
+  {/* ✅ CONTENT */}
+  <View
+    style={{
+      flexDirection: "row",
+      justifyContent: "space-between",
+      padding: 12
+    }}
+  >
+    <Text style={{ color: isSelected ? "white" : "black" }}>
+      {opt.text}
+    </Text>
+
+    <Text style={{ color: isSelected ? "white" : "black" }}>
+      {Math.round(percent)}%
+    </Text>
+  </View>
+
+</TouchableOpacity>
             );
           })}
         </View>
@@ -218,20 +338,29 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
 
       {/* ACTIONS */}
       <View style={styles.actions}>
+        
 
         <TouchableOpacity
           disabled={loading}
           onPress={handleLike}
           style={styles.actionItem}
         >
-          <Ionicons name="heart-outline" size={22} />
+          <Ionicons
+  name={liked ? "heart" : "heart-outline"}
+  size={22}
+  color={liked ? "red" : "black"}
+/>
           <Text>Like ({updatedPost.likes?.length})</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionItem}>
+        <TouchableOpacity 
+  style={styles.actionItem}
+  onPress={() => setShowAllComments(prev => !prev)}
+>
           <Ionicons name="chatbubble-outline" size={22} />
           <Text>Comment ({updatedPost.comments?.length})</Text>
         </TouchableOpacity>
+        
 
         <TouchableOpacity onPress={handleShare} style={styles.actionItem}>
           <Ionicons name="share-outline" size={22} />
@@ -239,6 +368,118 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
         </TouchableOpacity>
 
       </View>
+    {updatedPost.comments?.length > 0 && (
+  <View style={{ marginTop: 10 }}>
+
+    {(updatedPost.comments || [])
+      .slice(showAllComments ? 0 : -2)
+      .map((c, i) => {
+
+        const isCommentLiked = (c.likes || []).some(
+          id => id.toString() === updatedPost.currentUserId
+        );
+
+        return (
+          <View key={i} style={{ marginBottom: 10 }}>
+
+            {/* NAME */}
+            <Text style={{ fontWeight: "bold" }}>
+              {c.user?.name || "User"}
+            </Text>
+
+            {/* TEXT */}
+            <Text>
+              {c.text.split(/(@\w+)/g).map((part, index) =>
+                part.startsWith("@") ? (
+                  <Text key={index} style={{ color: "#1976d2" }}>
+                    {part}
+                  </Text>
+                ) : (
+                  part
+                )
+              )}
+            </Text>
+
+            {/* ACTIONS */}
+            <View style={{ flexDirection: "row", gap: 15, marginTop: 5 }}>
+
+              {/* LIKE */}
+              <TouchableOpacity onPress={() => handleLikeComment(c._id)}>
+                <Text style={{ color: isCommentLiked ? "red" : "gray" }}>
+                  Like ({c.likes?.length || 0})
+                </Text>
+              </TouchableOpacity>
+
+              {/* REPLY */}
+              <TouchableOpacity onPress={() => {
+  console.log("REPLY CLICKED:", c._id);
+  setReplyTo(c._id.toString());
+}}>
+                <Text style={{ color: "#1976d2" }}>Reply</Text>
+              </TouchableOpacity>
+
+              {/* DELETE */}
+              {c.user?._id?.toString() === updatedPost.currentUserId && (
+                <TouchableOpacity onPress={() => handleDeleteComment(c._id)}>
+                  <Text style={{ color: "red" }}>Delete</Text>
+                </TouchableOpacity>
+              )}
+
+            </View>
+
+            {/* REPLIES */}
+            {c.replies?.map((r, idx) => (
+              <View key={idx} style={{ marginLeft: 20, marginTop: 5 }}>
+                <Text style={{ fontWeight: "bold" }}>
+                  {r.user?.name || "User"}
+                </Text>
+                <Text>{r.text}</Text>
+              </View>
+            ))}
+
+          </View>
+        );
+      })}
+  </View>
+)}
+{replyTo && (
+  <View style={{ marginTop: 10 }}>
+
+    {/* 🔥 Show replying info */}
+    <Text style={{ color: "gray", marginBottom: 5 }}>
+      Replying to comment...
+    </Text>
+
+    <View style={{ flexDirection: "row" }}>
+      <TextInput
+        value={replyText}
+        onChangeText={setReplyText}
+        placeholder="Write reply..."
+        style={{
+          flex: 1,
+          borderWidth: 1,
+          borderColor: "#ddd",
+          borderRadius: 8,
+          padding: 8
+        }}
+      />
+
+      <TouchableOpacity onPress={handleReply}>
+        <Text style={{ marginLeft: 10, color: "#1976d2" }}>
+          Send
+        </Text>
+      </TouchableOpacity>
+    </View>
+
+    {/* ❌ Cancel reply */}
+    <TouchableOpacity onPress={() => setReplyTo(null)}>
+      <Text style={{ color: "red", marginTop: 5 }}>
+        Cancel
+      </Text>
+    </TouchableOpacity>
+
+  </View>
+)}
 
       {/* COMMENT INPUT */}
       <View style={{ flexDirection: "row", marginTop: 10 }}>
@@ -255,7 +496,10 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
           }}
         />
 
-        <TouchableOpacity disabled={loading} onPress={handleComment}>
+        <TouchableOpacity
+  disabled={loading || !comment.trim()}
+  onPress={handleComment}
+>
           <Text style={{ marginLeft: 10, color: "#1976d2" }}>
             Post
           </Text>
@@ -263,6 +507,7 @@ const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
       </View>
 
     </View>
+    </KeyboardAvoidingView>
   );
 };
 

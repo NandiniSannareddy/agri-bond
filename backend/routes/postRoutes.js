@@ -7,7 +7,9 @@ import {
   toggleLike,
   addComment,
   repost,
-  votePoll
+  votePoll,
+    likeComment,
+  deleteComment,replyToComment
 } from "../controllers/postController.js";
 import upload from "../config/multer.js";
 
@@ -22,6 +24,9 @@ router.post("/create", (req, res, next) => {
 router.post("/all", getPosts);
 router.post("/like", toggleLike);
 router.post("/comment", addComment);
+router.post("/comment/like", likeComment);
+router.post("/comment/delete", deleteComment);
+router.post("/comment/reply", replyToComment);
 router.post("/repost", repost);
 router.post("/vote", votePoll);
 

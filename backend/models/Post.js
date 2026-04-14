@@ -38,6 +38,21 @@ const postSchema = new mongoose.Schema(
     ],
 
     comments: [
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    text: String,
+
+    likes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    replies: [
       {
         user: {
           type: mongoose.Schema.Types.ObjectId,
@@ -50,6 +65,13 @@ const postSchema = new mongoose.Schema(
         },
       },
     ],
+
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+],
 
     repostedFrom: {
       type: mongoose.Schema.Types.ObjectId,
