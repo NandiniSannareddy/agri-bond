@@ -20,10 +20,12 @@ import firebaseConfig from "../firebase/firebaseConfig";
 import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
 import { signInWithPhoneNumber } from "firebase/auth";
 import axios from "axios";
+import { useUser } from "../context/UserContext";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function WelcomeScreen({ navigation }) {
+  const { setUserProfile } = useUser();
   const recaptchaVerifier = useRef(null);
 
   const [phone, setPhone] = useState("");
@@ -104,32 +106,42 @@ export default function WelcomeScreen({ navigation }) {
   };
 
   // 🔥 VERIFY OTP
-  const verifyOTP = async () => {
-    if (!otp || otp.length !== 6)
-      return Alert.alert("Enter valid 6 digit OTP");
+const verifyOTP = async () => {
+  if (!otp || otp.length !== 6)
+    return Alert.alert("Enter valid 6 digit OTP");
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const result = await confirmation.confirm(otp);
-      const idToken = await result.user.getIdToken();
-      const res = await axios.post(
-        `${API_URL}/api/user/check-user`,
-        { idToken }
-      );
+    const result = await confirmation.confirm(otp);
+    const idToken = await result.user.getIdToken();
 
-      if (res.data.exists)
-        navigation.replace("MainTabs");
-      else
-        navigation.replace("CompleteProfile");
+    const res = await axios.post(
+      `${API_URL}/api/user/check-user`,
+      { idToken }
+    );
 
-    } catch (error) {
-      console.log("OTP ERROR:", error);
-      Alert.alert("Invalid or Expired OTP");
+    // 🔥 IMPORTANT: SAVE USER
+    if (res.data.user) {
+      await setUserProfile(res.data.user);
     }
 
-    setLoading(false);
-  };
+if (res.data.exists) {
+  navigation.reset({
+    index: 0,
+    routes: [{ name: "MainTabs" }],
+  });
+} else {
+  navigation.navigate("CompleteProfile");
+}
+
+  } catch (error) {
+    console.log("OTP ERROR:", error);
+    Alert.alert("Invalid or Expired OTP");
+  }
+
+  setLoading(false);
+};
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>

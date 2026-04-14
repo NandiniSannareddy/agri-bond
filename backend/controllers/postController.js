@@ -128,6 +128,7 @@ export const getPosts = async (req, res) => {
         return {
           ...post._doc,
           translatedText: translatedText || post.textOriginal,
+          currentUserId: user._id.toString() // ✅ ADD THIS LINE
         };
       })
     );
@@ -139,7 +140,7 @@ export const getPosts = async (req, res) => {
   }
 };
 
-export const toggleLike = async (req, res) => {
+/* export const toggleLike = async (req, res) => {
   try {
     const { idToken, postId } = req.body;
 
@@ -168,8 +169,59 @@ export const toggleLike = async (req, res) => {
     res.status(500).json({ message: "Like failed" });
   }
 };
+ */
 
-export const addComment = async (req, res) => {
+export const toggleLike = async (req, res) => {
+  try {
+    const { idToken, postId } = req.body;
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const user = await User.findOne({ firebaseUid: decoded.uid });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const userId = user._id.toString(); // ✅ IMPORTANT CHANGE
+
+    const alreadyLiked = post.likes.some(
+      id => id.toString() === userId
+    );
+
+    if (alreadyLiked) {
+      post.likes = post.likes.filter(
+        id => id.toString() !== userId
+      );
+    } else {
+      post.likes.push(user._id); // ✅ IMPORTANT CHANGE
+    }
+
+    await post.save();
+
+    const updatedPost = await Post.findById(postId)
+      .populate("author")
+      .populate("comments.user");
+
+    res.json({
+  ...updatedPost._doc,
+  currentUserId: user._id.toString() // ✅ ADD THIS LINE
+});
+
+  } catch (error) {
+    console.log("LIKE BACKEND ERROR:", error);
+    res.status(500).json({
+      message: "Like failed",
+      error: error.message
+    });
+  }
+};
+/* export const addComment = async (req, res) => {
   try {
     const { idToken, postId, text } = req.body;
 
@@ -196,6 +248,48 @@ export const addComment = async (req, res) => {
     res.json(updatedPost);
 
   } catch (error) {
+    res.status(500).json({ message: "Comment failed" });
+  }
+}; */
+
+export const addComment = async (req, res) => {
+  try {
+    const { idToken, postId, text } = req.body;
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const user = await User.findOne({ firebaseUid: decoded.uid });
+
+    const post = await Post.findById(postId);
+
+    // ✅ FIX 1: check post BEFORE using
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // ✅ extract @mentions
+    const mentions = text.match(/@\w+/g) || [];
+
+    post.comments.push({
+      user: user._id,
+      text,
+      mentions
+    });
+
+    await post.save();
+
+    const updatedPost = await Post.findById(postId)
+      .populate("author")
+      .populate("comments.user")
+      .populate("comments.replies.user");
+
+    // ✅ FIX 2: send currentUserId
+    res.json({
+      ...updatedPost._doc,
+      currentUserId: user._id.toString()
+    });
+
+  } catch (error) {
+    console.log("COMMENT BACKEND ERROR:", error);
     res.status(500).json({ message: "Comment failed" });
   }
 };
@@ -248,28 +342,39 @@ export const votePoll = async (req, res) => {
     }
 
     // ✅ check already voted (FIXED)
-    let alreadyVoted = false;
+   let previousOptionIndex = -1;
 
-    post.poll.options.forEach(option => {
-      if (
-        option.votes.some(
-          (v) => v.toString() === user._id.toString()
-        )
-      ) {
-        alreadyVoted = true;
+    // 🔍 Find previous vote
+    post.poll.options.forEach((option, index) => {
+      if (option.votes.some(v => String(v) === String(user._id))) {
+        previousOptionIndex = index;
       }
     });
 
-    if (alreadyVoted) {
-      const updatedPost = await Post.findById(postId)
-        .populate("author")
-        .populate("comments.user");
-
-      return res.json(updatedPost);
+    // ✅ UNDO (same option clicked)
+    if (previousOptionIndex === optionIndex) {
+      post.poll.options[optionIndex].votes =
+        post.poll.options[optionIndex].votes.filter(
+          v => String(v) !== String(user._id)
+        );
     }
 
-    // ✅ add vote
-    post.poll.options[optionIndex].votes.push(user._id);
+    // ✅ CHANGE vote
+    else if (previousOptionIndex !== -1) {
+      // remove old vote
+      post.poll.options[previousOptionIndex].votes =
+        post.poll.options[previousOptionIndex].votes.filter(
+          v => String(v) !== String(user._id)
+        );
+
+      // add new vote
+      post.poll.options[optionIndex].votes.push(user._id);
+    }
+
+    // ✅ FIRST TIME vote
+    else {
+      post.poll.options[optionIndex].votes.push(user._id);
+    }
 
     await post.save();
 
@@ -279,11 +384,137 @@ export const votePoll = async (req, res) => {
 
     res.json(updatedPost);
 
+
   } catch (error) {
     console.log("POLL ERROR:", error); // 🔥 VERY IMPORTANT
     res.status(500).json({
       message: "Poll vote failed",
       error: error.message,
     });
+  }
+};
+
+export const likeComment = async (req, res) => {
+  try {
+    const { idToken, postId, commentId } = req.body;
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const user = await User.findOne({ firebaseUid: decoded.uid });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    const comment = post.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    const userId = user._id.toString();
+
+    const alreadyLiked = (comment.likes || []).some(
+      id => id.toString() === userId
+    );
+
+    if (alreadyLiked) {
+      comment.likes = comment.likes.filter(
+        id => id.toString() !== userId
+      );
+    } else {
+      comment.likes.push(user._id);
+    }
+
+    await post.save();
+
+    const updatedPost = await Post.findById(postId)
+      .populate("author")
+      .populate("comments.user")
+      .populate("comments.replies.user");
+
+    res.json({
+      ...updatedPost._doc,
+      currentUserId: userId
+    });
+
+  } catch (err) {
+    console.log("LIKE COMMENT ERROR:", err);
+    res.status(500).json({ message: "Comment like failed" });
+  }
+};
+
+export const deleteComment = async (req, res) => {
+  try {
+    const { idToken, postId, commentId } = req.body;
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const user = await User.findOne({ firebaseUid: decoded.uid });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    const comment = post.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+    
+    
+
+    if (comment.user.toString() !== user._id.toString()) {
+      return res.status(403).json({ message: "Not allowed" });
+    }
+    console.log("DELETING COMMENT:", commentId);
+
+    post.comments = post.comments.filter(
+  c => c._id.toString() !== commentId
+);
+console.log("COMMENTS AFTER DELETE:", post.comments);
+
+    await post.save();
+
+    const updatedPost = await Post.findById(postId)
+      .populate("author")
+      .populate("comments.user")
+      .populate("comments.replies.user");
+
+    res.json({
+      ...updatedPost._doc,
+      currentUserId: user._id.toString()
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Delete failed" });
+  }
+};
+export const replyToComment = async (req, res) => {
+  try {
+    const { idToken, postId, commentId, text } = req.body;
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const user = await User.findOne({ firebaseUid: decoded.uid });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    const comment = post.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    comment.replies.push({
+      user: user._id,
+      text
+    });
+
+    await post.save();
+
+    const updatedPost = await Post.findById(postId)
+      .populate("author")
+      .populate("comments.user")
+      .populate("comments.replies.user");
+
+    res.json({
+      ...updatedPost._doc,
+      currentUserId: user._id.toString()
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Reply failed" });
   }
 };

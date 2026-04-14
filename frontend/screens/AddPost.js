@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Image,
   Modal,
-  FlatList,
   Platform,
   KeyboardAvoidingView,
   SafeAreaView
@@ -27,19 +26,19 @@ export default function AddPost() {
   const navigation = useNavigation();
   const { userProfile } = useUser();
 
+  const [isPosting, setIsPosting] = useState(false);
+
   const [postText, setPostText] = useState("");
   const [mediaList, setMediaList] = useState([]);
-  const [emojiModal, setEmojiModal] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
 
   const [inputMode, setInputMode] = useState("local");
+
   const [isPoll, setIsPoll] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
 
-  const emojis = ["😀","😂","😍","🔥","🥳","😎","❤️","👍","🎉","😢"];
-
-  /* ---------------- IMAGE PICKER ---------------- */
+  /* ---------------- MEDIA ---------------- */
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -48,12 +47,25 @@ export default function AddPost() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsMultipleSelection: true,
-      quality: 1,
     });
 
-    if (!result.canceled) {
-      setMediaList([...mediaList, ...result.assets]);
+  if (!result.canceled) {
+    const newFiles = result.assets;
+
+    // 🔥 CHECK VIDEO EXIST
+    const hasVideo = mediaList.some(m => m.type?.includes("video"));
+
+    if (hasVideo) {
+      return alert("Only one video allowed");
     }
+
+    // 🔥 CHECK LIMIT
+    if (mediaList.length + newFiles.length > 5) {
+      return alert("Maximum 5 images allowed");
+    }
+
+    setMediaList([...mediaList, ...newFiles]);
+  }
   };
 
   const openCamera = async () => {
@@ -62,11 +74,20 @@ export default function AddPost() {
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
-      quality: 1,
     });
 
     if (!result.canceled) {
-      setMediaList([...mediaList, result.assets[0]]);
+      const file = result.assets[0];
+
+      if (file.type?.includes("video") && mediaList.length > 0) {
+        return alert("Cannot mix video with images");
+      }
+
+      if (mediaList.length >= 5) {
+        return alert("Max 5 images allowed");
+      }
+
+      setMediaList([...mediaList, file]);
     }
   };
 
@@ -76,88 +97,101 @@ export default function AddPost() {
     setMediaList(updated);
   };
 
+  /* ---------------- POLL ---------------- */
+
   const cancelPoll = () => {
     setIsPoll(false);
     setPollQuestion("");
     setPollOptions(["", ""]);
   };
 
-  const handlePost = async () => {
-    try {
-      if (!postText && mediaList.length === 0) {
-        return alert("Post cannot be empty");
-      }
-
-      const idToken = await auth.currentUser.getIdToken();
-      const formData = new FormData();
-
-      formData.append("idToken", idToken);
-      formData.append("textOriginal", postText);
-      formData.append(
-        "originalLanguage",
-        inputMode === "en" ? "en" : userProfile?.languageCode
-      );
-
-      mediaList.forEach((item, index) => {
-        const uri =
-          Platform.OS === "ios"
-            ? item.uri.replace("file://", "")
-            : item.uri;
-
-        const file = {
-          uri,
-          type: item.type === "video" ? "video/mp4" : "image/jpeg",
-          name:
-            item.type === "video"
-              ? `video-${index}.mp4`
-              : `image-${index}.jpg`,
-        };
-
-        if (item.type === "image") formData.append("images", file);
-        else if (item.type === "video") formData.append("video", file);
-      });
-
-      if (isPoll) {
-        formData.append(
-          "poll",
-          JSON.stringify({
-            question: pollQuestion,
-            options: pollOptions.filter((o) => o.trim() !== ""),
-          })
-        );
-      }
-
-      await axios.post(`${API_URL}/api/posts/create`, formData, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      setSuccessModal(true);
-      setPostText("");
-      setMediaList([]);
-      cancelPoll();
-
-      setTimeout(() => {
-        setSuccessModal(false);
-        navigation.goBack();
-      }, 1500);
-
-    } catch (error) {
-      console.log("POST ERROR:", error);
-      alert("Failed to create post");
-    }
+  const removeOption = (index) => {
+    const updated = [...pollOptions];
+    updated.splice(index, 1);
+    setPollOptions(updated);
   };
+
+  /* ---------------- POST ---------------- */
+
+const handlePost = async () => {
+  try {
+    if (isPosting) return; // 🔥 prevent double click
+
+    if (!postText && mediaList.length === 0) {
+      return alert("Post cannot be empty");
+    }
+
+    setIsPosting(true); // 🔥 START LOADING
+
+    const idToken = await auth.currentUser.getIdToken();
+    const formData = new FormData();
+
+    formData.append("idToken", idToken);
+    formData.append("textOriginal", postText);
+    formData.append(
+      "originalLanguage",
+      inputMode === "en" ? "en" : userProfile?.languageCode
+    );
+
+    mediaList.forEach((item, index) => {
+      const uri =
+        Platform.OS === "ios"
+          ? item.uri.replace("file://", "")
+          : item.uri;
+
+      const file = {
+        uri,
+        type: item.type?.includes("video") ? "video/mp4" : "image/jpeg",
+        name: item.type?.includes("video")
+          ? `video-${index}.mp4`
+          : `image-${index}.jpg`,
+      };
+
+      if (item.type?.includes("image")) formData.append("images", file);
+      else formData.append("video", file);
+    });
+
+    if (isPoll) {
+      formData.append(
+        "poll",
+        JSON.stringify({
+          question: pollQuestion,
+          options: pollOptions.filter((o) => o.trim() !== ""),
+        })
+      );
+    }
+
+    await axios.post(`${API_URL}/api/posts/create`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    setSuccessModal(true);
+
+    setPostText("");
+    setMediaList([]);
+    cancelPoll();
+
+    setTimeout(() => {
+      setSuccessModal(false);
+      navigation.goBack();
+    }, 1500);
+
+  } catch (err) {
+    console.log(err);
+    alert("Post failed");
+  } finally {
+    setIsPosting(false); // 🔥 STOP LOADING
+  }
+};
 
   /* ---------------- UI ---------------- */
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+    <SafeAreaView style={styles.container}>
 
-      {/* FIXED HEADER */}
+      {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.heading}>Create Post</Text>
+        <Text style={styles.heading}>🌱 Create Post</Text>
       </View>
 
       <KeyboardAvoidingView
@@ -165,70 +199,84 @@ export default function AddPost() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <KeyboardAwareScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+          contentContainerStyle={{ padding: 15, paddingBottom: 120 }}
           enableOnAndroid
-          extraScrollHeight={20}
         >
 
-          {/* Language Toggle */}
-          <View style={{ flexDirection: "row", marginBottom: 10 }}>
-            <TouchableOpacity onPress={() => setInputMode("local")}>
-              <Text style={{ marginRight: 15 }}>
-                {inputMode === "local" ? "🔘" : "⚪"} My Language
+          {/* LANGUAGE */}
+          <View style={styles.langToggle}>
+            <TouchableOpacity
+              style={[
+                styles.langBtn,
+                inputMode === "local" && styles.activeLang
+              ]}
+              onPress={() => setInputMode("local")}
+            >
+              <Text
+                style={[
+                  styles.langText,
+                  inputMode === "local" && styles.activeLangText
+                ]}
+              >
+                My Language
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => setInputMode("en")}>
-              <Text>
-                {inputMode === "en" ? "🔘" : "⚪"} English
+            <TouchableOpacity
+              style={[
+                styles.langBtn,
+                inputMode === "en" && styles.activeLang
+              ]}
+              onPress={() => setInputMode("en")}
+            >
+              <Text
+                style={[
+                  styles.langText,
+                  inputMode === "en" && styles.activeLangText
+                ]}
+              >
+                English
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Post Box */}
+          {/* INPUT BOX */}
           <View style={styles.postBox}>
             <TextInput
               style={styles.input}
-              placeholder="Write your post..."
+              placeholder={
+                inputMode === "en"
+                  ? "Write in English..."
+                  : "Write in your language..."
+              }
               value={postText}
               onChangeText={setPostText}
               multiline
             />
 
-            {/* Media Preview */}
+            {/* MEDIA */}
             {mediaList.map((item, index) => (
               <View key={index} style={styles.mediaWrapper}>
                 {item.type === "image" ? (
                   <Image source={{ uri: item.uri }} style={styles.preview} />
                 ) : (
-                  <Video
-                    source={{ uri: item.uri }}
-                    style={styles.preview}
-                    useNativeControls
-                  />
+                  <Video source={{ uri: item.uri }} style={styles.preview} useNativeControls />
                 )}
 
-                <TouchableOpacity
-                  style={styles.removeBtn}
-                  onPress={() => removeMedia(index)}
-                >
-                  <Ionicons name="close-circle" size={24} color="red" />
+                <TouchableOpacity onPress={() => removeMedia(index)} style={styles.removeBtn}>
+                  <Ionicons name="close-circle" size={22} color="red" />
                 </TouchableOpacity>
               </View>
             ))}
 
-            {/* Icons */}
+            {/* ICONS */}
             <View style={styles.iconRow}>
               <TouchableOpacity onPress={pickImage}>
-                <MaterialIcons name="photo-library" size={26} color="#1976d2" />
+                <MaterialIcons name="photo" size={26} color="#2e7d32" />
               </TouchableOpacity>
 
               <TouchableOpacity onPress={openCamera}>
-                <Ionicons name="camera-outline" size={26} color="#d32f2f" />
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={() => setEmojiModal(true)}>
-                <Ionicons name="happy-outline" size={26} color="#f9a825" />
+                <Ionicons name="camera" size={26} color="#1976d2" />
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => setIsPoll(true)}>
@@ -237,66 +285,76 @@ export default function AddPost() {
             </View>
           </View>
 
-          {/* Poll Section */}
+          {/* POLL */}
           {isPoll && (
             <View style={styles.pollContainer}>
-              
-              {/* Cancel Poll */}
-              <TouchableOpacity
-                style={styles.cancelPoll}
-                onPress={cancelPoll}
-              >
-                <Ionicons name="close" size={20} color="white" />
-              </TouchableOpacity>
+
+              <View style={styles.pollHeader}>
+                <Text style={styles.pollTitle}>Create Poll</Text>
+
+                <TouchableOpacity onPress={cancelPoll}>
+                  <Ionicons name="close" size={24} color="red" />
+                </TouchableOpacity>
+              </View>
 
               <TextInput
-                placeholder="Poll Question"
+                placeholder="Poll question..."
                 value={pollQuestion}
                 onChangeText={setPollQuestion}
                 style={styles.input}
               />
 
               {pollOptions.map((opt, index) => (
-                <TextInput
-                  key={index}
-                  placeholder={`Option ${index + 1}`}
-                  value={opt}
-                  onChangeText={(text) => {
-                    const updated = [...pollOptions];
-                    updated[index] = text;
-                    setPollOptions(updated);
-                  }}
-                  style={styles.input}
-                />
+                <View key={index} style={styles.optionRow}>
+                  <TextInput
+                    placeholder={`Option ${index + 1}`}
+                    value={opt}
+                    onChangeText={(text) => {
+                      const updated = [...pollOptions];
+                      updated[index] = text;
+                      setPollOptions(updated);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+
+                  {pollOptions.length > 2 && (
+                    <TouchableOpacity onPress={() => removeOption(index)}>
+                      <Ionicons name="close-circle" size={22} color="red" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               ))}
 
-              <TouchableOpacity
-                onPress={() => setPollOptions([...pollOptions, ""])}
-              >
-                <Text style={{ color: "#2e7d32" }}>+ Add Option</Text>
+              <TouchableOpacity onPress={() => setPollOptions([...pollOptions, ""])}>
+                <Text style={styles.addOption}>+ Add Option</Text>
               </TouchableOpacity>
+
             </View>
           )}
 
         </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
 
-      {/* FIXED POST BUTTON */}
+      {/* POST BUTTON */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.postButton} onPress={handlePost}>
-          <Text style={styles.postButtonText}>Post</Text>
+        <TouchableOpacity
+          style={[
+            styles.postBtn,
+            isPosting && { backgroundColor: "#9e9e9e" }
+          ]}
+          onPress={handlePost}
+          disabled={isPosting}
+        >
+          <Text style={styles.postText}>
+            {isPosting ? "Posting..." : "Post"}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Success Modal */}
-      <Modal visible={successModal} transparent animationType="fade">
-        <View style={styles.successContainer}>
-          <View style={styles.successBox}>
-            <Ionicons name="checkmark-circle" size={50} color="#2e7d32" />
-            <Text style={{ marginTop: 10, fontWeight: "bold" }}>
-              Post Added Successfully!
-            </Text>
-          </View>
+      {/* SUCCESS */}
+      <Modal visible={successModal} transparent>
+        <View style={styles.modal}>
+          <Text style={{ color: "white" }}>Post Successful ✅</Text>
         </View>
       </Modal>
 
@@ -307,17 +365,42 @@ export default function AddPost() {
 /* ---------------- STYLES ---------------- */
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f5f5f5" },
+
   header: {
-    padding: 15,
-    backgroundColor: "#fff",
+    paddingTop: 40,
+    paddingBottom: 15,
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderColor: "#ddd"
+    backgroundColor: "#fff"
   },
-  heading: {
-    fontSize: 20,
-    fontWeight: "bold"
-  },
+
+  heading: { fontSize: 20, fontWeight: "bold" },
+
+langToggle: {
+  flexDirection: "row",
+  backgroundColor: "#e8f5e9", // light green background
+  borderRadius: 30,
+  padding: 4,
+  marginBottom: 15,
+},
+langBtn: {
+  flex: 1,
+  paddingVertical: 8,
+  alignItems: "center",
+  borderRadius: 25,
+},
+activeLang: {
+  backgroundColor: "#2e7d32", // main green
+},
+langText: {
+  color: "#2e7d32",
+  fontWeight: "500",
+},
+activeLangText: {
+  color: "#fff",
+  fontWeight: "bold",
+},
+
   postBox: {
     backgroundColor: "#fff",
     padding: 15,
@@ -325,24 +408,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd"
   },
-  input: {
-    minHeight: 50,
-    marginBottom: 10
-  },
+
+  input: { minHeight: 50, marginBottom: 10 },
+
   iconRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     marginTop: 10
   },
-  preview: {
-    width: 120,
-    height: 120,
-    borderRadius: 10,
-    marginVertical: 5
-  },
-  mediaWrapper: {
-    position: "relative"
-  },
+
+  preview: { width: 120, height: 120, borderRadius: 10 },
+
+  mediaWrapper: { position: "relative", marginVertical: 5 },
+
   removeBtn: {
     position: "absolute",
     top: -5,
@@ -350,52 +428,64 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 20
   },
+
   pollContainer: {
     marginTop: 20,
     backgroundColor: "#fff",
     padding: 15,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    position: "relative"
+    borderRadius: 15
   },
-  cancelPoll: {
-    position: "absolute",
-    right: 10,
-    top: 10,
-    backgroundColor: "#d32f2f",
-    padding: 5,
-    borderRadius: 20
+
+  pollHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
   },
+
+  pollTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8
+  },
+
+  addOption: {
+    color: "#2e7d32",
+    marginTop: 10,
+    fontWeight: "bold",
+  },
+
   footer: {
     position: "absolute",
     bottom: 0,
     width: "100%",
-    backgroundColor: "#fff",
     padding: 15,
-    borderTopWidth: 1,
-    borderColor: "#ddd"
+    backgroundColor: "#fff"
   },
-  postButton: {
+
+  postBtn: {
     backgroundColor: "#2e7d32",
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center"
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    elevation: 3,
   },
-  postButtonText: {
+
+  postText: {
     color: "#fff",
-    fontWeight: "bold"
+    fontWeight: "bold",
+    fontSize: 16,
   },
-  successContainer: {
+
+  modal: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.4)"
-  },
-  successBox: {
-    backgroundColor: "#fff",
-    padding: 30,
-    borderRadius: 15,
-    alignItems: "center"
+    backgroundColor: "rgba(0,0,0,0.6)"
   }
 });
