@@ -137,7 +137,7 @@ export default function HomeScreen() {
       <View style={styles.searchRow}>
         <TouchableOpacity
           onPress={() =>
-            navigation.navigate("Profile", { user: userProfile })
+            navigation.navigate("ProfileScreen", { user: userProfile })
           }
         >
         <Image

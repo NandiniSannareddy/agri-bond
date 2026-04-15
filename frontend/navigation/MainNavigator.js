@@ -69,7 +69,7 @@ export default function MainNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {/* Your original Welcome screen */}
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
       <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
       <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
       <Stack.Screen name="MediaPreview" component={MediaPreviewScreen} />

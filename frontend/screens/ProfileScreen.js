@@ -13,6 +13,7 @@ import PostCard from "../components/PostCard";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { auth } from "../firebase/firebaseConfig";
+import { useRoute } from "@react-navigation/native";
 
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -146,6 +147,7 @@ const uploadImage = async (uri) => {
   return (
     <FlatList
       data={posts}
+      extraData={posts}
       keyExtractor={(item) => item._id}
       contentContainerStyle={{ paddingBottom: 20 }}
 
@@ -248,8 +250,17 @@ const uploadImage = async (uri) => {
         </View>
       )}
 
-      renderItem={({ item }) => <PostCard post={item} />}
+      renderItem={({ item }) => (
+  <PostCard
+    post={item}
+    showDelete={true}
+    onDelete={(postId) => {
+      setPosts(prev => prev.filter(p => p._id !== postId));
+    }}
+  />
+)}
     />
+    
   );
 }
 
