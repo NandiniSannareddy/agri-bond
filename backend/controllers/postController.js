@@ -114,25 +114,52 @@ export const getPosts = async (req, res) => {
       .populate("author", "name images video state district profileImage")
       .sort({ createdAt: -1 });
 
-    const processedPosts = await Promise.all(
-      posts.map(async (post) => {
-        let translatedText = post.textOriginal;
+const processedPosts = await Promise.all(
+  posts.map(async (post) => {
+    let translatedText = post.textOriginal;
+    let translatedPoll = post.poll;  // ✅ NEW: Poll variable
 
-        if (post.originalLanguage !== targetLanguage) {
-          translatedText = await translateText(
-            post.textOriginal,
+    if (post.originalLanguage !== targetLanguage) {
+      translatedText = await translateText(
+        post.textOriginal,
+        targetLanguage
+      );
+
+      // ✅ NEW: Translate poll question & options
+      if (post.poll) {
+        try {
+          const translatedQuestion = await translateText(
+            post.poll.question,
             targetLanguage
           );
-        }
+          
+          const translatedOptions = await Promise.all(
+            post.poll.options.map(async (opt) => ({
+              text: await translateText(opt.text, targetLanguage),
+              votes: opt.votes
+            }))
+          );
 
-        return {
-          ...post._doc,
-          translatedText: translatedText || post.textOriginal,
-          currentUserId: user._id.toString() // ✅ ADD THIS LINE
-        };
-      })
-    );
-    res.json(processedPosts);
+          translatedPoll = {
+            question: translatedQuestion,
+            options: translatedOptions
+          };
+        } catch (pollError) {
+          console.error("POLL TRANSLATION ERROR:", pollError);
+          // Keep original poll if translation fails
+        }
+      }
+    }
+
+    return {
+      ...post._doc,
+      translatedText: translatedText || post.textOriginal,
+      poll: translatedPoll || post.poll,  // ✅ NEW: Send translated poll
+      currentUserId: user._id.toString()
+    };
+  })
+);
+res.json(processedPosts);
 
   } catch (error) {
     console.log("GET POSTS ERROR:", error);
