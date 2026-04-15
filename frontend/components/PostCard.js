@@ -13,14 +13,19 @@ import { Video } from "expo-av";
 import axios from "axios";
 import { auth } from "../firebase/firebaseConfig";
 import { KeyboardAvoidingView, Platform } from "react-native";
+import { FlatList, Dimensions, Modal } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-const PostCard = ({ post, viewMode, userLanguage, idToken }) => {
+const PostCard = ({ post, viewMode, userLanguage, idToken,onDelete,showDelete }) => {
 
   const [showOriginal, setShowOriginal] = useState(false);
   const [updatedPost, setUpdatedPost] = useState(post);
+  const { width } = Dimensions.get("window");
+  const [selectedImage, setSelectedImage] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
+  const navigation = useNavigation();
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
   const liked = updatedPost?.likes?.some(
@@ -96,6 +101,26 @@ const [showAllComments, setShowAllComments] = useState(false);
     console.log("LIKE ERROR:", err.response?.data || err.message);
   } finally {
     setLoading(false);
+  }
+};
+//delete post
+const handleDeletePost = async () => {
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+      console.log("DELETING POST ID:", post._id); //
+    await axios.post(`${API_URL}/api/posts/delete`, {
+      idToken,
+      postId: post._id,
+    });
+
+    // 🔥 remove from UI
+    if (onDelete) {
+      onDelete(updatedpost._id);
+      
+    }
+
+  } catch (err) {
+    console.log("DELETE ERROR:", err.response?.data || err.message);
   }
 };
 
@@ -192,33 +217,52 @@ const handleReply = async () => {
   };
 
   return (
-  <KeyboardAvoidingView
+  /*<KeyboardAvoidingView
     behavior={Platform.OS === "ios" ? "padding" : "height"}
-    style={{ flex: 1 }}
-  >
+    style={{ }}
+  >*/
     <View style={styles.card}>
 
       {/* HEADER */}
-      <View style={styles.header}>
-        <Image
-          source={{
-            uri:
-              updatedPost.author?.profileImage ||
-              "https://i.pravatar.cc/100",
-          }}
-          style={styles.profile}
-        />
+     <View style={styles.header}>
 
-        <View>
-          <Text style={styles.name}>
-            {updatedPost.author?.name || "User"}
-          </Text>
+  {/* LEFT SIDE → Profile click */}
+  <TouchableOpacity
+    style={{ flexDirection: "row", flex: 1 }}
+    onPress={() =>
+      navigation.navigate("ProfileScreen", {
+        user: updatedPost.author
+      })
+    }
+  >
+    <Image
+      source={{
+        uri:
+          updatedPost.author?.profileImage ||
+          "https://i.pravatar.cc/100",
+      }}
+      style={styles.profile}
+    />
 
-          <Text style={styles.location}>
-            {updatedPost.author?.state}, {updatedPost.author?.district}
-          </Text>
-        </View>
-      </View>
+    <View>
+      <Text style={styles.name}>
+        {updatedPost.author?.name || "User"}
+      </Text>
+
+      <Text style={styles.location}>
+        {updatedPost.author?.state}, {updatedPost.author?.district}
+      </Text>
+    </View>
+  </TouchableOpacity>
+
+  {/* RIGHT SIDE → DELETE ICON */}
+  {showDelete && updatedPost.author?._id?.toString() === updatedPost.currentUserId && (
+  <TouchableOpacity onPress={handleDeletePost}>
+    <Ionicons name="trash-outline" size={20} color="red" />
+  </TouchableOpacity>
+)}
+
+</View>
 
       {/* TEXT */}
       <Text style={styles.content}>
@@ -324,20 +368,53 @@ const handleReply = async () => {
       )}
 
       {/* MEDIA */}
-      {updatedPost.images?.map((img, i) => (
+      {/*updatedPost.images?.map((img, i) => (
         <Image key={i} source={{ uri: img }} style={styles.media} />
-      ))}
+      ))*/}
+     {/* ✅ COMBINED MEDIA CAROUSEL */}
+{(updatedPost.images?.length > 0 || updatedPost.video) && (
+  <FlatList
+    data={[
+      ...(updatedPost.images || []).map(img => ({ type: "image", uri: img })),
+      ...(updatedPost.video ? [{ type: "video", uri: updatedPost.video }] : [])
+    ]}
+    horizontal
+    pagingEnabled
+    showsHorizontalScrollIndicator={false}
+    keyExtractor={(item, index) => index.toString()}
+    renderItem={({ item }) => (
+      <View style={{ width: width - 24, marginRight: 10 }}>
+        
+        {item.type === "image" ? (
+          <TouchableOpacity onPress={() => setSelectedImage(item.uri)}>
+            <Image
+              source={{ uri: item.uri }}
+              style={{
+                width: "100%",
+                height: 250,
+                borderRadius: 10
+              }}
+            />
+          </TouchableOpacity>
+        ) : (
+          <Video
+            source={{ uri: item.uri }}
+            style={{
+              width: "100%",
+              height: 250,
+              borderRadius: 10
+            }}
+            useNativeControls
+          />
+        )}
 
-      {updatedPost.video && (
-        <Video
-          source={{ uri: updatedPost.video }}
-          style={styles.media}
-          useNativeControls
-        />
-      )}
-
+      </View>
+    )}
+  />
+)}
       {/* ACTIONS */}
       <View style={styles.actions}>
+        
         
 
         <TouchableOpacity
@@ -505,9 +582,29 @@ const handleReply = async () => {
           </Text>
         </TouchableOpacity>
       </View>
+      <Modal visible={!!selectedImage} transparent={true}>
+  <TouchableOpacity
+    style={{
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.9)",
+      justifyContent: "center",
+      alignItems: "center"
+    }}
+    onPress={() => setSelectedImage(null)}
+  >
+    <Image
+      source={{ uri: selectedImage }}
+      style={{
+        width: "100%",
+        height: "80%",
+        resizeMode: "contain"
+      }}
+    />
+  </TouchableOpacity>
+</Modal>
 
     </View>
-    </KeyboardAvoidingView>
+    //</KeyboardAvoidingView>
   );
 };
 

@@ -7,6 +7,7 @@ import {
   toggleLike,
   addComment,
   repost,
+ deletePost,
   votePoll,
     likeComment,
   deleteComment,replyToComment
@@ -28,6 +29,7 @@ router.post("/comment/like", likeComment);
 router.post("/comment/delete", deleteComment);
 router.post("/comment/reply", replyToComment);
 router.post("/repost", repost);
+router.post("/delete", deletePost);
 router.post("/vote", votePoll);
 
 export default router;

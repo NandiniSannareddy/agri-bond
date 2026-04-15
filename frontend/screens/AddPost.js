@@ -20,6 +20,7 @@ import { auth } from "../firebase/firebaseConfig";
 import { useUser } from "../context/UserContext";
 import { useNavigation } from "@react-navigation/native";
 
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function AddPost() {

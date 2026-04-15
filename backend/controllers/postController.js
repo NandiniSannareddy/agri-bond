@@ -316,6 +316,41 @@ export const repost = async (req, res) => {
     res.status(500).json({ message: "Repost failed" });
   }
 };
+export const deletePost = async (req, res) => {
+  try {
+    const { idToken, postId } = req.body;
+
+    // ✅ VERIFY FIREBASE USER
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const firebaseUid = decoded.uid;
+
+    // ✅ FIND USER IN DB
+    const user = await User.findOne({ firebaseUid });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // ✅ CHECK OWNER (FIXED)
+    if (post.author.toString() !== user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    await Post.findByIdAndDelete(postId);
+
+    res.json({ message: "Post deleted successfully" });
+
+  } catch (err) {
+    console.log("DELETE POST ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 export const votePoll = async (req, res) => {
   try {
