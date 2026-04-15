@@ -52,13 +52,15 @@ const [showAllComments, setShowAllComments] = useState(false);
     });
   }, [updatedPost]); */
 
-     useEffect(() => {
+    useEffect(() => {
   if (!updatedPost.poll) return;
+
+  const userId = updatedPost.currentUserId;
 
   let found = null;
 
   updatedPost.poll.options.forEach((opt, index) => {
-    if (opt.votes.length > 0) {
+    if (opt.votes.some(v => v.toString() === userId)) {
       found = index;
     }
   });
@@ -199,7 +201,7 @@ const handleReply = async () => {
     const { data } = await axios.post(`${API_URL}/api/posts/vote`, {
       idToken,
       postId: updatedPost._id,
-      optionIndex: index
+      optionIndex:selectedOption === index ? null :  index
     });
 
     setUpdatedPost(data); // ✅ ONLY THIS
@@ -281,7 +283,7 @@ const handleReply = async () => {
 
       {/* POLL */}
       {updatedPost.poll && (
-        <View style={{ marginTop: 10 }}>
+        <View style={{ marginTop: 10, marginBottom: 10 }}>
           <Text style={{ fontWeight: "bold" }}>
             {updatedPost.poll.question}
           </Text>
@@ -325,10 +327,16 @@ const handleReply = async () => {
   disabled={loading}
   onPress={() => handleVote(index)}
   style={{
-    marginTop: 8,
+  /*  marginTop: 8,
     borderRadius: 10,
     overflow: "hidden",
-    backgroundColor: "#f1f1f1"
+    backgroundColor: "#f1f1f1"*/
+    marginTop: index === 0 ? 8 : 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    overflow: "hidden",
+    backgroundColor: isSelected ? "#1976d2" : "#f1f1f1"
   }}
 >
 
@@ -340,7 +348,7 @@ const handleReply = async () => {
       top: 0,
       bottom: 0,
       width: `${Math.round(percent)}%`,
-      backgroundColor: isSelected ? "#1976d2" : "#d3d3d3"
+      backgroundColor: isSelected ? "#1976d2" :"#e0e0e0"
     }}
   />
 
@@ -373,6 +381,7 @@ const handleReply = async () => {
       ))*/}
      {/* ✅ COMBINED MEDIA CAROUSEL */}
 {(updatedPost.images?.length > 0 || updatedPost.video) && (
+   //<View style={{ marginTop: }}>
   <FlatList
     data={[
       ...(updatedPost.images || []).map(img => ({ type: "image", uri: img })),
@@ -411,6 +420,7 @@ const handleReply = async () => {
       </View>
     )}
   />
+ // </View>
 )}
       {/* ACTIONS */}
       <View style={styles.actions}>

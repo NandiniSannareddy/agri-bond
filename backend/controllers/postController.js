@@ -372,10 +372,9 @@ export const votePoll = async (req, res) => {
       return res.status(404).json({ message: "Poll not found" });
     }
 
-    if (!post.poll.options[optionIndex]) {
+   /* if (!post.poll.options[optionIndex]) {
       return res.status(400).json({ message: "Invalid option index" });
-    }
-
+    }*/
     // ✅ check already voted (FIXED)
    let previousOptionIndex = -1;
 
@@ -387,12 +386,13 @@ export const votePoll = async (req, res) => {
     });
 
     // ✅ UNDO (same option clicked)
-    if (previousOptionIndex === optionIndex) {
+  /*  if (previousOptionIndex === optionIndex) {
       post.poll.options[optionIndex].votes =
         post.poll.options[optionIndex].votes.filter(
           v => String(v) !== String(user._id)
         );
     }
+
 
     // ✅ CHANGE vote
     else if (previousOptionIndex !== -1) {
@@ -409,7 +409,31 @@ export const votePoll = async (req, res) => {
     // ✅ FIRST TIME vote
     else {
       post.poll.options[optionIndex].votes.push(user._id);
-    }
+    }*/
+   // 🔥 HANDLE UNDO
+if (optionIndex === null) {
+  if (previousOptionIndex !== -1) {
+    post.poll.options[previousOptionIndex].votes =
+      post.poll.options[previousOptionIndex].votes.filter(
+        v => String(v) !== String(user._id)
+      );
+  }
+}
+
+// 🔥 CHANGE vote
+else if (previousOptionIndex !== -1) {
+  post.poll.options[previousOptionIndex].votes =
+    post.poll.options[previousOptionIndex].votes.filter(
+      v => String(v) !== String(user._id)
+    );
+
+  post.poll.options[optionIndex].votes.push(user._id);
+}
+
+// 🔥 FIRST TIME vote
+else {
+  post.poll.options[optionIndex].votes.push(user._id);
+}
 
     await post.save();
 
@@ -417,8 +441,11 @@ export const votePoll = async (req, res) => {
       .populate("author")
       .populate("comments.user");
 
-    res.json(updatedPost);
-
+   // res.json(updatedPost);
+res.json({
+  ...updatedPost._doc,
+  currentUserId: user._id.toString()
+});
 
   } catch (error) {
     console.log("POLL ERROR:", error); // 🔥 VERY IMPORTANT
