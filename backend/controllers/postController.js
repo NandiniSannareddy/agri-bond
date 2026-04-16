@@ -114,25 +114,52 @@ export const getPosts = async (req, res) => {
       .populate("author", "name images video state district profileImage")
       .sort({ createdAt: -1 });
 
-    const processedPosts = await Promise.all(
-      posts.map(async (post) => {
-        let translatedText = post.textOriginal;
+const processedPosts = await Promise.all(
+  posts.map(async (post) => {
+    let translatedText = post.textOriginal;
+    let translatedPoll = post.poll;  // ✅ NEW: Poll variable
 
-        if (post.originalLanguage !== targetLanguage) {
-          translatedText = await translateText(
-            post.textOriginal,
+    if (post.originalLanguage !== targetLanguage) {
+      translatedText = await translateText(
+        post.textOriginal,
+        targetLanguage
+      );
+
+      // ✅ NEW: Translate poll question & options
+      if (post.poll) {
+        try {
+          const translatedQuestion = await translateText(
+            post.poll.question,
             targetLanguage
           );
-        }
+          
+          const translatedOptions = await Promise.all(
+            post.poll.options.map(async (opt) => ({
+              text: await translateText(opt.text, targetLanguage),
+              votes: opt.votes
+            }))
+          );
 
-        return {
-          ...post._doc,
-          translatedText: translatedText || post.textOriginal,
-          currentUserId: user._id.toString() // ✅ ADD THIS LINE
-        };
-      })
-    );
-    res.json(processedPosts);
+          translatedPoll = {
+            question: translatedQuestion,
+            options: translatedOptions
+          };
+        } catch (pollError) {
+          console.error("POLL TRANSLATION ERROR:", pollError);
+          // Keep original poll if translation fails
+        }
+      }
+    }
+
+    return {
+      ...post._doc,
+      translatedText: translatedText || post.textOriginal,
+      poll: translatedPoll || post.poll,  // ✅ NEW: Send translated poll
+      currentUserId: user._id.toString()
+    };
+  })
+);
+res.json(processedPosts);
 
   } catch (error) {
     console.log("GET POSTS ERROR:", error);
@@ -372,10 +399,9 @@ export const votePoll = async (req, res) => {
       return res.status(404).json({ message: "Poll not found" });
     }
 
-    if (!post.poll.options[optionIndex]) {
+   /* if (!post.poll.options[optionIndex]) {
       return res.status(400).json({ message: "Invalid option index" });
-    }
-
+    }*/
     // ✅ check already voted (FIXED)
    let previousOptionIndex = -1;
 
@@ -387,12 +413,13 @@ export const votePoll = async (req, res) => {
     });
 
     // ✅ UNDO (same option clicked)
-    if (previousOptionIndex === optionIndex) {
+  /*  if (previousOptionIndex === optionIndex) {
       post.poll.options[optionIndex].votes =
         post.poll.options[optionIndex].votes.filter(
           v => String(v) !== String(user._id)
         );
     }
+
 
     // ✅ CHANGE vote
     else if (previousOptionIndex !== -1) {
@@ -409,7 +436,31 @@ export const votePoll = async (req, res) => {
     // ✅ FIRST TIME vote
     else {
       post.poll.options[optionIndex].votes.push(user._id);
-    }
+    }*/
+   // 🔥 HANDLE UNDO
+if (optionIndex === null) {
+  if (previousOptionIndex !== -1) {
+    post.poll.options[previousOptionIndex].votes =
+      post.poll.options[previousOptionIndex].votes.filter(
+        v => String(v) !== String(user._id)
+      );
+  }
+}
+
+// 🔥 CHANGE vote
+else if (previousOptionIndex !== -1) {
+  post.poll.options[previousOptionIndex].votes =
+    post.poll.options[previousOptionIndex].votes.filter(
+      v => String(v) !== String(user._id)
+    );
+
+  post.poll.options[optionIndex].votes.push(user._id);
+}
+
+// 🔥 FIRST TIME vote
+else {
+  post.poll.options[optionIndex].votes.push(user._id);
+}
 
     await post.save();
 
@@ -417,8 +468,11 @@ export const votePoll = async (req, res) => {
       .populate("author")
       .populate("comments.user");
 
-    res.json(updatedPost);
-
+   // res.json(updatedPost);
+res.json({
+  ...updatedPost._doc,
+  currentUserId: user._id.toString()
+});
 
   } catch (error) {
     console.log("POLL ERROR:", error); // 🔥 VERY IMPORTANT
