@@ -17,7 +17,7 @@ import {
 
 import { auth } from "../firebase/firebaseConfig";
 import firebaseConfig from "../firebase/firebaseConfig";
-//import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
+import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
 import { signInWithPhoneNumber } from "firebase/auth";
 import axios from "axios";
 import { useUser } from "../context/UserContext";
@@ -154,11 +154,11 @@ if (res.data.exists) {
 
         {/* Invisible Recaptcha */}
         <View style={{ height: 0 }}>
-          {/* <FirebaseRecaptchaVerifierModal
+          { <FirebaseRecaptchaVerifierModal
             ref={recaptchaVerifier}
             firebaseConfig={firebaseConfig}
             attemptInvisibleVerification={true}
-          /> */}
+          /> }
         </View>
 
         <View style={styles.overlay} />
